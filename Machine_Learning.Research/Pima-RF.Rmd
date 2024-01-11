@@ -1,0 +1,324 @@
+---
+title: "Database finall"
+author: "Francisco Santos"
+date: '2022-05-09'
+output: html_document
+---
+================================================================================
+#Building a decision tree model for the prediction of diabetes considering multiple health #variables
+-Data preparation and evaluation of missing values.
+-Building a model with high accuracy but not overfitting
+-Evaluate each variable given from a sample dataset of 147 individuals and select the most -correlated to
+-the outcome, and which one is the better predictor for the outcome.
+-construct and evaluate the model with R packages caret and e1071
+-Production of a correlation heatmap
+-tune-up parameters for better optimization of the model
+================================================================================
+
+
+```{r}
+library(readr)
+library(dplyr)
+library(reshape2)
+library(ggplot2)
+library(AUC)
+library(caret)
+PimaIndiansDiabetes <- read.csv("~/Downloads/PimaIndiansDiabetes.csv")
+```
+
+
+Q1 Which variables are numeric and which are categorical? explain why
+```{r}
+library(tidyverse)
+
+#numeric variables: Pregnancies, Glucose, BloodPressure, SkinThickness, insulin, BMI, DiabetesPedigreeFunction, Age. This is because they represent a measurable quantity and the order matters to determine something, for example; BMI > 25.0 means Overweight or obese. The same way happens with Blood Presure; Higher than 120 means elevated pressure and the order matters till 180 where is classified in hypertension stage 1,2, and crisis. 
+# categorical variables: Outcome. Because there only two posible measures; 0 and 1, meaning "do not have diabetes" and "have diabetes" respectivelly.
+
+PimaIndiansDiabetes$Outcome <- as.factor(PimaIndiansDiabetes$Outcome)
+summary(PimaIndiansDiabetes$Outcome) # twice people without diabetes
+
+# they were in double and it could mislead the results, so changing it to numeric.
+PimaIndiansDiabetes$Glucose <- as.numeric(PimaIndiansDiabetes$Glucose)
+PimaIndiansDiabetes$BloodPressure <- as.numeric(PimaIndiansDiabetes$BloodPressure)
+PimaIndiansDiabetes$SkinThickness <- as.numeric(PimaIndiansDiabetes$SkinThickness)
+PimaIndiansDiabetes$Insulin <- as.numeric(PimaIndiansDiabetes$Insulin)
+PimaIndiansDiabetes$BMI <- as.numeric(PimaIndiansDiabetes$BMI)
+PimaIndiansDiabetes$Age <- as.numeric(PimaIndiansDiabetes$Age)
+```
+
+q2 Use appropiate graphs to predict which of the variables (on their own) are most helpful in predicting the outcome? 
+```{r}
+#plot age 
+
+ggplot(data = PimaIndiansDiabetes) +
+  geom_boxplot(mapping = aes(x = Outcome,y = Age, fill=as.factor(Outcome)))
+#informational confirm it with violin tomorrow.
+# violin of age
+ggplot(data = PimaIndiansDiabetes) +
+  geom_violin(mapping = aes(x = Outcome,y = Age, fill=as.factor(Outcome)))
+
+#plot DPF
+ggplot(data = PimaIndiansDiabetes) +
+  geom_boxplot(mapping = aes(x = Outcome,y = DiabetesPedigreeFunction, fill=as.factor(Outcome)))
+
+#plot BMI
+ggplot(data = PimaIndiansDiabetes) +
+  geom_boxplot(mapping = aes(x = Outcome,y = BMI, fill=as.factor(Outcome)))
+#informational-
+#violin BMI
+ggplot(data = PimaIndiansDiabetes) +
+  geom_violin(mapping = aes(x = Outcome,y = BMI, fill=as.factor(Outcome)))
+
+#plot insulin
+ggplot(data = PimaIndiansDiabetes) +
+  geom_boxplot(mapping = aes(x = Outcome,y = Insulin, fill=as.factor(Outcome)))
+
+#plot SkinThickness
+ggplot(data = PimaIndiansDiabetes) +
+  geom_boxplot(mapping = aes(x = Outcome,y = SkinThickness, fill=as.factor(Outcome)))
+
+#plot Bloodp
+ggplot(data = PimaIndiansDiabetes) +
+  geom_boxplot(mapping = aes(x = Outcome,y = BloodPressure, fill=as.factor(Outcome)))
+
+#Plot Glucose
+ggplot(data = PimaIndiansDiabetes) +
+  geom_boxplot(mapping = aes(x = Outcome,y = Glucose, fill=as.factor(Outcome)))
+# Glucose is highly info -
+#violin of Gluc
+ggplot(data = PimaIndiansDiabetes) +
+  geom_violin(mapping = aes(x = Outcome,y = Glucose, fill=as.factor(Outcome)))
+
+# plot Pregnancies
+ggplot(data = PimaIndiansDiabetes) +
+  geom_boxplot(mapping = aes(x = Outcome,y = Pregnancies, fill=as.factor(Outcome)))
+
+ggplot(data = PimaIndiansDiabetes) +
+  geom_violin(mapping = aes(x = Outcome,y = Pregnancies, fill=as.factor(Outcome)))
+
+
+# comparing the Outliers and Interquartile Range with the median of the boxplots between 0 and 1 outcome for each variable, I can deduce that glucose is the most informational variable followed by BMI and Age, those 3 variable seems to be more informational because it shows distict patterns between 0 and 1 that can be useful for the prediction. Althought we can not ignore other factors such as DiabetesPF and pregnancies because they could be potentially related to the outcome.
+```
+
+correlation
+```{r}
+PimaIndiansDiabetes$Outcome <- as.numeric(PimaIndiansDiabetes$Outcome)
+corPima <- cor(PimaIndiansDiabetes)
+meltCorPima <- melt(corPima)
+
+ggplot(meltCorPima, aes(x= Var1, y= Var2, fill=value))+
+  geom_tile()+
+  scale_fill_gradient2(low = "yellow", high = "red", mid = "white") +
+  theme(axis.text.x = element_text(angle=45, vjust=1, hjust=1))
+
+#the least 3 correlated to the outcome are insulin, skinThickness and Blood. No strong correlation between other variables.
+#pressure.
+
+head(PimaIndiansDiabetes)
+```
+
+
+
+
+Q3 Are there any missing values? and how do we fix this? 
+```{r}
+PimaIndiansDiabetes$Outcome <- as.factor(PimaIndiansDiabetes$Outcome)
+list(colSums(PimaIndiansDiabetes==0), sum(rowSums(PimaIndiansDiabetes==0)))
+```
+
+
+```{r}
+# 102 women havent been pregnant (the zero means something) so we could convert this numeric variable in categorical variable to evade 0 and any problem related to it.
+PimaIndiansDiabetes$Pregnancies <- ifelse(PimaIndiansDiabetes$Pregnancies==0, "Not_Pregnant","Pregnant")
+head(PimaIndiansDiabetes)
+PimaIndiansDiabetes$Pregnancies <- as.factor(PimaIndiansDiabetes$Pregnancies)
+counts <- table(PimaIndiansDiabetes$Pregnancies, PimaIndiansDiabetes$Outcome)
+barplot(counts, legend= rownames(counts))
+```
+
+
+```{r}
+# 32 observations in bloodPressure have a value of 0 which in blood Pressure is impossible (they are NA), then is incorrect information. Replacing such values with the median would be more reliable than drop that observations because we have a small dataset. 
+ggplot(data = PimaIndiansDiabetes) +
+  geom_violin(mapping = aes(x = Outcome,y = BloodPressure, fill=as.factor(Outcome)))
+#since the diabetics seems to have higher blood pressure than the non-diabetic, I will replace the zeros of 1 with the median of 1 for Bloodpressure. Samewise to 0
+
+PimaIndiansDiabetes$BloodPressure <- replace(PimaIndiansDiabetes$BloodPressure, PimaIndiansDiabetes$BloodPressure==0 & PimaIndiansDiabetes$Outcome==0, median(PimaIndiansDiabetes$BloodPressure[PimaIndiansDiabetes$Outcome==0]))
+
+#replace Pima$Bloodp where Pima$Bloodp is 0 and Pima outcome is 0 with the median 
+#of Pima bloodp where the outcome of Pima is 0
+PimaIndiansDiabetes$BloodPressure <- replace(PimaIndiansDiabetes$BloodPressure, PimaIndiansDiabetes$BloodPressure==0 & PimaIndiansDiabetes$Outcome==1, median(PimaIndiansDiabetes$BloodPressure[PimaIndiansDiabetes$Outcome==1]))
+```
+
+
+```{r}
+#The above statement also applies for the 9 observations in BMI and 5 observations of Glucose. These missing values will be replaced by their means matching their outcome.
+PimaIndiansDiabetes$BMI<- replace(PimaIndiansDiabetes$BMI, PimaIndiansDiabetes$BMI==0 & PimaIndiansDiabetes$Outcome==0, median(PimaIndiansDiabetes$BMI[PimaIndiansDiabetes$Outcome==0]))
+#replace Pima$BMI where Pima$BMI is 0 and Pima outcome is 0 with the median#of Pima BMI where the outcome  of Pima is 0
+```
+
+
+```{r}
+PimaIndiansDiabetes$BMI<- replace(PimaIndiansDiabetes$BMI, PimaIndiansDiabetes$BMI==0 & PimaIndiansDiabetes$Outcome==1, median(PimaIndiansDiabetes$BMI[PimaIndiansDiabetes$Outcome==1]))
+```
+
+
+```{r}
+PimaIndiansDiabetes$Glucose <- replace(PimaIndiansDiabetes$Glucose, PimaIndiansDiabetes$Glucose==0 & PimaIndiansDiabetes$Outcome==0, median(PimaIndiansDiabetes$Glucose[PimaIndiansDiabetes$Outcome==0]))
+##eplace Pima$GLUCOSE where Pima$GLUCOSE is 0 and Pima outcome is 0 with the median 
+#of Pima GLUCOSE where the outcome  of Pima is 0
+```
+
+
+```{r}
+PimaIndiansDiabetes$Glucose <- replace(PimaIndiansDiabetes$Glucose, PimaIndiansDiabetes$Glucose==0 & PimaIndiansDiabetes$Outcome==1, median(PimaIndiansDiabetes$Glucose[PimaIndiansDiabetes$Outcome==1]))
+
+#DiabetesPF doesn't have 0 values.
+```
+
+
+```{r}
+#322 insulin values are missing or got 0 (diabetes type 1 do not produce insuline, that's why they have to inject it synthetically). The zero could means something, however in this scenario, I decide to remove it because it's not related with outcome. Hence is not that helpful with the prediction. Also, Inputing the median values on zeros (in insulin are 322) could promote misleading because the goal is to predict the outcome with more datasets, and if the test datasets presents the same problem as this (to much zeros in insulin), could mislead the prediction since I median its zero values for prediction.
+Pima.db <- PimaIndiansDiabetes #saving Pima with Insulin and skin default values.
+PimaIndiansDiabetes$Insulin <- NULL
+```
+
+
+```{r}
+# 196 SkinThickness observations are missing (NA because how can a human have 0mm skinfold thickness) being somewhat huge for the size of this data, however, this variable is also not giving us much use. Therefore I will remove this variable as well. 
+PimaIndiansDiabetes$SkinThickness <- NULL
+```
+
+```{r}
+list(colSums(PimaIndiansDiabetes==0), sum(rowSums(PimaIndiansDiabetes==0)))
+# not zero values.
+```
+
+q4 Building the Model
+
+```{r}
+# Despite the unexcelled acurracy, I'm Picking randomForest because  it is not a distance based Clasifier and probably will not be affected by the presence of the huge outliner observations in the small dataset. Also, is worth to point out that RF is less likely to overfit.
+library(randomForest)
+
+PimaIndiansDiabetes$Outcome <- as.factor(PimaIndiansDiabetes$Outcome)
+#20% test_set, 80% training set 
+
+trainIndx <- createDataPartition(PimaIndiansDiabetes$Outcome, p= .8, list=F, times=1)
+
+training_set <- PimaIndiansDiabetes[trainIndx,]
+test_set<- PimaIndiansDiabetes[-trainIndx,]
+
+#default prameters Random Forest
+rf.default <- randomForest(Outcome ~ ., data = training_set, importance=T)
+varImpPlot(rf.default) #Glucose, BMI, Age as predicted.
+```
+
+
+```{r}
+library(AUC)
+#score of the default rf 
+rf.default.prd <- predict(rf.default, newdata = test_set)
+rf.default.roc <- roc(test_set$Outcome, rf.default.prd)
+auc(rf.default.roc)
+#0.7424 # we have to search for better parameters
+#search better parrameters.......
+```
+
+#evaluating the model
+```{r}
+library(caret)
+library(e1071)
+trControl <- trainControl(method = "cv", number = 10, search = "grid")
+# evaluating the model with a grid search of 10 folder (k-fold cross validation)
+#train() to evaluate algorithm
+
+#model with default values 
+set.seed(1234)
+rf.default.eval <- train(Outcome ~ ., data = training_set, method= "rf", metric = "Accuracy", trControl= trControl)
+
+print(rf.default.eval)
+#mtry=4 with 0.77 *default parameters!!!!*
+
+rf.default.eval.test <- predict(rf.default.eval, newdata = test_set)
+fit.roc.test <- roc(test_set$Outcome, rf.default.eval.test)
+auc(fit.roc.test)
+#0.717
+
+```
+
+#searching for better parameteres in RF
+#mtry
+```{r}
+## searching fot the best parameters in rf
+#mtry parameter 
+set.seed(1234)
+tuneGrid <- expand.grid(.mtry = c(1:35))
+rf.mtry.eval <- train(Outcome ~ ., data = training_set, method= "rf", metric = "Accuracy", tuneGrid = tuneGrid, trControl= trControl, importance=T, nodesize = 14)
+
+print(rf.mtry.eval) 
+best.mtry <- rf.mtry.eval$bestTune$mtry
+best.mtry <- 4 # accuracy of 0.7907
+
+#*tomorrow check maxnodes and ntree*
+```
+
+#maxnodes
+```{r}
+#best maxnodes.
+storing.maxnodes <- list()# storing the results here in this list
+tuneGrid<- expand.grid(.mtry = best.mtry)#best mtry
+for (maxnodes in c(5:35)) {
+  set.seed(1234)
+  rf.maxnode.eval <- train(Outcome ~ ., data = training_set, method= "rf", metric = "Accuracy", tuneGrid = tuneGrid, trControl= trControl, importance = T, nodesize = 14, maxnodes = maxnodes)
+this.interation <- toString(maxnodes)
+storing.maxnodes[[this.interation]] <- rf.maxnode.eval#store as a string the value
+}
+results.mtry <- resamples(storing.maxnodes)#arranging the results
+summary(results.mtry)#all pos combinations
+
+#maxnodes=9 with .8490
+```
+
+#ntrees
+```{r}
+#ntrees parm
+store.maxtrees <- list() # storing the results
+for (ntree in c(250,300,350,400,450,500,550,600,650,700,800,1000,1500,2000,2200,2500,2700,3000)) {
+  set.seed(5678)
+  rf.trees.eval <- train(Outcome ~ ., data = training_set, method= "rf", metric = "Accuracy", tuneGrid = tuneGrid, trControl= trControl, importance = T, maxnodes = 9, ntree = ntree)
+  interation<- toString(ntree)
+  store.maxtrees[[interation]] <- rf.trees.eval
+}
+results.tree<- resamples(store.maxtrees)
+summary(results.tree)
+
+```
+
+q5 the final model 
+```{r}
+#maxnodes=9 with .85
+#mtry=4 with 0.7907
+#1200 ntrees with 0.87
+#nthe parameters
+
+
+Par.rf.train <- train(Outcome~., training_set, method= "rf", metric="Accuracy", tuneGrid=tuneGrid, trControl=trControl, importance=T, ntree = 1200, maxnodes = 9, nodesize=14)
+#best model
+Par.rf<- randomForest(Outcome~., training_set, mtry=4, ntree = 1200, maxnodes = 9, Importance=T, nodesize=14) 
+
+
+print(Par.rf.train)
+#same as general but somewhat better with test
+
+#testing the model with test_set
+Par.rf.pred2 <- predict(Par.rf.train, newdata = test_set)
+confusionMatrix(Par.rf.pred2, test_set$Outcome)
+#quite better than default values.
+Par.rf.roc.train <- roc(test_set$Outcome, Par.rf.pred2)
+
+plot(Par.rf)
+
+```
+
+
+

@@ -1,0 +1,280 @@
+---
+title: "homework4"
+author: "Francisco Santos"
+date: '2022-04-01'
+output: html_document
+---
+#q1
+```{r}
+library(tidyverse)
+ cancer_data <- read_delim("data.csv")
+ 
+
+
+# use these emasuremenrs to predict the diagnosis (malignant or benign)
+## radius_mean, texture_mean, smoothness_mean, compactness_mean
+
+
+```
+
+
+#q2 create a boxlpot or violin plot for each variable to visualize the distribution of the values between malignant and bening samples
+
+```{r} 
+library(tidyverse)
+# violin for radius_mean
+ggplot(data = cancer_data) +
+  geom_boxplot(mapping = aes(x = radius_mean,y = diagnosis, fill=as.factor(diagnosis)))
+```
+
+```{r}
+# violin for texture_mean
+ggplot(data = cancer_data) +
+  geom_boxplot(mapping = aes(x = texture_mean,y = diagnosis, fill = as.factor(diagnosis) ))
+
+
+```
+
+```{r}
+# violin for smoothness_mean
+ggplot(data = cancer_data) +
+  geom_boxplot(mapping = aes(x = smoothness_mean,y = diagnosis, fill=as.factor(diagnosis) ))
+
+```
+
+```{r}
+# compactness_mean
+
+ggplot(data = cancer_data) +
+  geom_boxplot(mapping = aes(x = compactness_mean,y = diagnosis, fill=as.factor(diagnosis) ))
+```
+
+ Which of the four variables will be most accurate in predicting by itself? Explain why.
+```{r}
+# Probably the radius_mean will be the variable with the most accurate prediction because the mean of all values of radius_mean for B diagnosis is more far away from the mean of the values for M diagnosis in all the measurements used to predict the diagnosis. Hence, probably the radius_mean will give good predictions; while smoothness could lead to bad (FALSE) predictions.
+
+
+```
+
+  q2.2
+```{r}
+library(caret)
+
+cancer_data$diagnosis <- as.factor(cancer_data$diagnosis)
+
+set.seed(3456)
+trainIndx <- createDataPartition(cancer_data$diagnosis, p= .8, list=F, times=1)
+
+training_set <- cancer_data[trainIndx,]
+test_set<- cancer_data[-trainIndx,]
+
+#sample() randomly picks 80% rows from the cancer_data dataset. Sampling without replacment and with the same ocurrences of diagnosis
+
+table(training_set[ , "diagnosis"])
+
+# B = 285, M = 170 , 1.68 of occurrence between them in training_set
+
+table(test_set[ , "diagnosis"])
+# B = 71, M = 42, 1.69 of occurrence between them in test_set
+
+
+
+```
+
+
+q 2.3
+```{r}
+# logistic regression of radius_mean
+lr_radius <- glm(diagnosis ~ radius_mean, data = training_set, family = "binomial")
+
+
+summary(lr_radius)
+
+
+
+
+```
+
+```{r}
+# logistic regression of texture
+lr_texture <- glm(diagnosis ~ texture_mean, data = training_set, family = "binomial")
+
+summary(lr_texture)
+
+```
+
+```{r}
+# logistic regresion of smoothness
+lr_smoothness <- glm(diagnosis ~ smoothness_mean, data = training_set, family = "binomial")
+
+summary(lr_smoothness)
+
+```
+
+```{r}
+# logistic regression of compactness_mean
+
+lr_compactness <- glm(diagnosis ~ compactness_mean, data = training_set, family = "binomial")
+
+summary(lr_compactness)
+
+```
+
+```{r}
+# calculate AUC to compare the determine which of the four variables is the most helpful predictor
+
+
+radioAUC_r <- predict(lr_radius, newdata = test_set, type="response")
+
+smoothnessAUC_r <- predict(lr_smoothness, newdata = test_set, type="response")
+
+compactnessAUC_r <- predict(lr_compactness, newdata = test_set, type="response")
+
+textureAUC_r <- predict(lr_texture, newdata = test_set, type="response")
+
+
+```
+
+
+```{r}
+library(AUC)
+#receiver operating characteristic for radius
+roc_radio<-roc(radioAUC_r,test_set$diagnosis)
+
+#plot the ROC radio
+plot(roc_radio, main=paste("AUC = ", auc(roc_radio ), sep=" "))
+```
+
+
+```{r}
+# receiver operating characteristic for smoothness
+roc_smoothness <- roc(smoothnessAUC_r, test_set$diagnosis)
+
+#plot the ROC smoothness
+plot(roc_smoothness, main=paste("AUC = ", auc(roc_smoothness ), sep=" "))
+```
+
+
+```{r}
+# receiver operating characteristic for compactness
+roc_compactness <- roc(compactnessAUC_r, test_set$diagnosis)
+
+#plot the ROC compactness
+plot(roc_compactness, main=paste("AUC = ", auc(roc_compactness ), sep=" "))
+```
+
+
+```{r}
+# receiver operating characteristic for texture 
+roc_texture <- roc(textureAUC_r, test_set$diagnosis)
+
+#plot the ROC texture
+plot(roc_texture, main=paste("AUC = ", auc(roc_texture ), sep=" "))
+
+
+
+
+
+
+
+```
+
+# determine which variable is th emost helpful predictor
+```{r}
+# the most helpful predictor variable is the radio_mean giving a AUC score of .917 meaning a 92%
+
+
+```
+
+
+q. 2.4
+```{r}
+lr <- glm(diagnosis ~ radius_mean + texture_mean + smoothness_mean + compactness_mean, data = training_set, family = "binomial")
+
+
+summary(lr)
+
+
+```
+```{r}
+#calculate the AUC to compare the results
+
+# ROC for the logistic regression of all variables 
+
+lrAUC_r <- predict(lr, newdata = test_set, type="response")
+
+roc_lr <- roc(lrAUC_r, test_set$diagnosis)
+
+
+#plot the ROC texture
+plot(roc_lr, main=paste("AUC = ", auc(roc_lr ), sep=" "))
+
+```
+
+Does this improve the performance? What conclusions can you draw from the coefficients?
+```{r}
+# yes this improve the performance of the prediction.
+# I can say that all the variables are statistically significant for predicting the odds of diagnosis and for every one unit of radius_mean and smoothness_mean gained, the odds for diagnosis increases by 1.434 and 104.639 respectively, however, the smoothness_mean has the highest uncertainty.
+
+
+```
+
+
+Q3
+
+q3.1 which variable do you expect to be at the root of the decision tree? Explain your answer.
+```{r}
+
+#I expect smoothness to be at the root of the decision tree because is the highest uncertain variable in comparison with the other variables
+
+
+```
+
+q3.2
+```{r}
+library(party)
+# tree1
+tree1 <- ctree(formula = diagnosis ~ radius_mean + smoothness_mean + texture_mean + compactness_mean, data = training_set, controls = ctree_control(maxdepth = 2))
+
+plot(tree1)
+```
+
+```{r}
+
+resultsPtree1 <- predict(tree1, newdata= test_set, type = "prob" )
+
+resultsPtree1.df <- t(as.data.frame(resultsPtree1))
+
+roc_tree1 <- roc(resultsPtree1.df[ ,2],test_set$diagnosis)
+
+plot(roc_tree1, main=paste(" AUC = ", auc(roc_tree1), sep= " "))
+```
+
+```{r}
+#tree
+tree2 <- ctree(formula = diagnosis ~ radius_mean + smoothness_mean + texture_mean + compactness_mean, data = training_set, controls = ctree_control(maxdepth = 4))
+
+plot(tree2)
+
+```
+
+```{r}
+
+resultsPtree2 <- predict(tree2, newdata= test_set, type = "prob" )
+
+resultsPtree2.df <- t(as.data.frame(resultsPtree2))
+
+roc_tree2 <- roc(resultsPtree2.df[ ,2],test_set$diagnosis)
+
+plot(roc_tree2, main=paste(" AUC = ", auc(roc_tree2), sep= " "))
+```
+
+
+q.3.3 discuss and compare the results from the two trees.
+```{r}
+
+# the probability of success in the second tree declines a little because its has more choices in comparison with the first tree. However in both trees we can deduce that the higher the texture in relation with a higher radius and compactness means that the odds of diagnosis are inclined to a tumor being M. Specifically with an likely odd of 98% chance of being malign when the radius is higher than 15 and texture higher than 14.86. At the end, we can say that the higher the variable radius, compactness, and texture are; the more likely that the tumor is Malign.
+```
+
+
+
